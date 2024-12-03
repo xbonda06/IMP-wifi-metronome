@@ -17,13 +17,27 @@
 #define LEDC_DUTY_RES     LEDC_TIMER_8_BIT
 #define LEDC_FREQUENCY    440
 
-#define WIFI_SSID         "Pixel"
-#define WIFI_PASS         "12131415"
+#define WIFI_SSID "Pixel"
+#define WIFI_PASS "12131415"
 
 static const char *TAG = "WiFi";
 
 static int frequency = 440;
 static int volume = 128; 
+
+static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data) {
+    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
+        printf("Wi-Fi: STA started\n");
+    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_CONNECTED) {
+        printf("Wi-Fi: Connected\n");
+    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
+        printf("Wi-Fi: Disconnected, reconnecting...\n");
+        esp_wifi_connect();
+    } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
+        ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
+        printf("IP Address: " IPSTR "\n", IP2STR(&event->ip_info.ip));
+    }
+}
 
 void wifi_init() {
     esp_err_t ret = nvs_flash_init();
@@ -43,27 +57,24 @@ void wifi_init() {
     wifi_config_t wifi_config = {
         .sta = {
             .ssid = WIFI_SSID,
-            .password = WIFI_PASS,
+            .password = "",  // Уберите пароль
         },
     };
+
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_start());
 
-    ESP_LOGI(TAG, "Connecting to Wi-Fi...\n");
-    ESP_ERROR_CHECK(esp_wifi_connect());
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler, NULL, NULL));
 
-    vTaskDelay(5000);
-
-    esp_netif_ip_info_t ip_info;
-    esp_netif_t *netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
-    esp_netif_get_ip_info(netif, &ip_info);
-
-    printf("IP Address: " IPSTR "\n", IP2STR(&ip_info.ip));
+    printf("Connecting to Wi-Fi...\n");
+    esp_wifi_connect();
 }
 
+
 static esp_err_t control_handler(httpd_req_t *req) {
-    char*  buf;
+    char* buf;
     size_t buf_len;
 
     buf_len = httpd_req_get_url_query_len(req) + 1;
