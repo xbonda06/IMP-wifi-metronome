@@ -7,6 +7,7 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
+#include "esp_http_server.h"
 
 #define BUZZER_PIN 25
 
@@ -16,10 +17,14 @@
 #define LEDC_DUTY_RES     LEDC_TIMER_8_BIT
 #define LEDC_FREQUENCY    440
 
+#define WIFI_SSID         "Pixel"
+#define WIFI_PASS         "12131415"
+
 static const char *TAG = "WiFi";
 
-#define WIFI_SSID "Pixel"
-#define WIFI_PASS "12131415"
+static int frequency = 440;
+static int volume = 128; 
+
 void wifi_init() {
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -47,10 +52,61 @@ void wifi_init() {
 
     ESP_LOGI(TAG, "Connecting to Wi-Fi...\n");
     ESP_ERROR_CHECK(esp_wifi_connect());
+
+    vTaskDelay(5000);
+
+    esp_netif_ip_info_t ip_info;
+    esp_netif_t *netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+    esp_netif_get_ip_info(netif, &ip_info);
+
+    printf("IP Address: " IPSTR "\n", IP2STR(&ip_info.ip));
+}
+
+static esp_err_t control_handler(httpd_req_t *req) {
+    char*  buf;
+    size_t buf_len;
+
+    buf_len = httpd_req_get_url_query_len(req) + 1;
+    if (buf_len > 1) {
+        buf = malloc(buf_len);
+        if (httpd_req_get_url_query_str(req, buf, buf_len) == ESP_OK) {
+            char param[32];
+            if (httpd_query_key_value(buf, "frequency", param, sizeof(param)) == ESP_OK) {
+                frequency = atoi(param);
+            }
+            if (httpd_query_key_value(buf, "volume", param, sizeof(param)) == ESP_OK) {
+                volume = atoi(param);
+            }
+        }
+        free(buf);
+    }
+
+    char response[64];
+    snprintf(response, sizeof(response), "Frequency: %d, Volume: %d", frequency, volume);
+    httpd_resp_send(req, response, HTTPD_RESP_USE_STRLEN);
+
+    return ESP_OK;
+}
+
+void start_webserver() {
+    httpd_handle_t server = NULL;
+    httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+
+    httpd_start(&server, &config);
+
+    httpd_uri_t uri_control = {
+        .uri       = "/control",
+        .method    = HTTP_GET,
+        .handler   = control_handler,
+        .user_ctx  = NULL
+    };
+
+    httpd_register_uri_handler(server, &uri_control);
 }
 
 void app_main(void) {
     wifi_init();
+    start_webserver();
 
     ledc_timer_config_t ledc_timer = {
         .duty_resolution = LEDC_DUTY_RES,
@@ -72,7 +128,8 @@ void app_main(void) {
     ledc_channel_config(&ledc_channel);
 
     while (1) {
-        ledc_set_duty(LEDC_MODE, LEDC_CHANNEL, 128);
+        ledc_set_freq(LEDC_MODE, LEDC_TIMER, frequency);
+        ledc_set_duty(LEDC_MODE, LEDC_CHANNEL, volume);
         ledc_update_duty(LEDC_MODE, LEDC_CHANNEL);
 
         vTaskDelay(pdMS_TO_TICKS(500));
