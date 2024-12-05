@@ -28,7 +28,17 @@ static int bpm = 120; // Default tempo (beats per minute)
 
 // Function to calculate delay in milliseconds based on bpm
 static int calculate_delay() {
-    return (60000 / bpm) / 2; // Divide by 2 for on/off beat
+    if(bpm < 170)
+        return (60000 / bpm) - 250;
+    else
+        return (60000 / bpm) / 2;
+}
+
+static int calculate_sound_time(){
+    if(bpm < 170)
+        return 250;
+    else
+        return (60000 / bpm) / 2;
 }
 
 static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data) {
@@ -163,10 +173,11 @@ void app_main(void) {
 
     while (1) {
         ledc_set_freq(LEDC_MODE, LEDC_TIMER, frequency);
+
         ledc_set_duty(LEDC_MODE, LEDC_CHANNEL, volume);
         ledc_update_duty(LEDC_MODE, LEDC_CHANNEL);
 
-        vTaskDelay(pdMS_TO_TICKS(calculate_delay()));
+        vTaskDelay(pdMS_TO_TICKS(calculate_sound_time()));
 
         ledc_set_duty(LEDC_MODE, LEDC_CHANNEL, 0);
         ledc_update_duty(LEDC_MODE, LEDC_CHANNEL);
