@@ -20,8 +20,6 @@
 #define WIFI_SSID "Pixel"
 #define WIFI_PASS "12131415"
 
-static const char *TAG = "WiFi";
-
 static int frequency = 440;
 static int volume = 128;
 static int bpm = 120; // Default tempo (beats per minute)
