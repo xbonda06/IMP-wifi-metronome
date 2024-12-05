@@ -18,12 +18,18 @@
 #define LEDC_FREQUENCY    440
 
 #define WIFI_SSID "Pixel"
-#define WIFI_PASS "12131415"
+#define WIFI_PASS ""
 
 static const char *TAG = "WiFi";
 
 static int frequency = 440;
-static int volume = 128; 
+static int volume = 128;
+static int bpm = 120; // Default tempo (beats per minute)
+
+// Function to calculate delay in milliseconds based on bpm
+static int calculate_delay() {
+    return (60000 / bpm) / 2; // Divide by 2 for on/off beat
+}
 
 static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data) {
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
@@ -57,7 +63,7 @@ void wifi_init() {
     wifi_config_t wifi_config = {
         .sta = {
             .ssid = WIFI_SSID,
-            .password = "",  // Уберите пароль
+            .password = WIFI_PASS,
         },
     };
 
@@ -88,12 +94,29 @@ static esp_err_t control_handler(httpd_req_t *req) {
             if (httpd_query_key_value(buf, "volume", param, sizeof(param)) == ESP_OK) {
                 volume = atoi(param);
             }
+            if (httpd_query_key_value(buf, "bpm", param, sizeof(param)) == ESP_OK) {
+                bpm = atoi(param);
+            }
         }
         free(buf);
     }
 
-    char response[64];
-    snprintf(response, sizeof(response), "Frequency: %d, Volume: %d", frequency, volume);
+    const char* html = "<!DOCTYPE html>"
+                       "<html>"
+                       "<head><title>Metronome Control</title></head>"
+                       "<body>"
+                       "<h1>Metronome Control</h1>"
+                       "<form action=\"/control\" method=\"get\">"
+                       "Frequency: <input type=\"number\" name=\"frequency\" value=\"%d\"><br>"
+                       "Volume: <input type=\"number\" name=\"volume\" value=\"%d\"><br>"
+                       "BPM: <input type=\"number\" name=\"bpm\" value=\"%d\"><br>"
+                       "<input type=\"submit\" value=\"Update\">"
+                       "</form>"
+                       "</body>"
+                       "</html>";
+
+    char response[512];
+    snprintf(response, sizeof(response), html, frequency, volume, bpm);
     httpd_resp_send(req, response, HTTPD_RESP_USE_STRLEN);
 
     return ESP_OK;
@@ -143,11 +166,11 @@ void app_main(void) {
         ledc_set_duty(LEDC_MODE, LEDC_CHANNEL, volume);
         ledc_update_duty(LEDC_MODE, LEDC_CHANNEL);
 
-        vTaskDelay(pdMS_TO_TICKS(500));
+        vTaskDelay(pdMS_TO_TICKS(calculate_delay()));
 
         ledc_set_duty(LEDC_MODE, LEDC_CHANNEL, 0);
         ledc_update_duty(LEDC_MODE, LEDC_CHANNEL);
 
-        vTaskDelay(pdMS_TO_TICKS(500));
+        vTaskDelay(pdMS_TO_TICKS(calculate_delay()));
     }
 }
