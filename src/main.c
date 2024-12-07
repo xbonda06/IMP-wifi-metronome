@@ -98,19 +98,36 @@ static esp_err_t control_handler(httpd_req_t *req) {
         buf = malloc(buf_len);
         if (httpd_req_get_url_query_str(req, buf, buf_len) == ESP_OK) {
             char param[32];
+
+            // Parse and validate volume
             if (httpd_query_key_value(buf, "volume", param, sizeof(param)) == ESP_OK) {
-                volume = atoi(param);
+                int new_volume = atoi(param);
+                if (new_volume >= 0 && new_volume <= 255) { // Validate volume range
+                    volume = new_volume;
+                } else {
+                    printf("Invalid volume value: %d. Must be between 0 and 255.\n", new_volume);
+                }
             }
+
+            // Parse and validate BPM
             if (httpd_query_key_value(buf, "bpm", param, sizeof(param)) == ESP_OK) {
-                bpm = atoi(param);
+                int new_bpm = atoi(param);
+                if (new_bpm >= 30 && new_bpm <= 300) { // Validate BPM range
+                    bpm = new_bpm;
+                } else {
+                    printf("Invalid BPM value: %d. Must be between 30 and 300.\n", new_bpm);
+                }
             }
+
+            // Parse time signature
             if (httpd_query_key_value(buf, "time_signature", param, sizeof(param)) == ESP_OK) {
-                time_signature = atoi(param);
+                time_signature = atoi(param); // No range validation for time_signature
             }
         }
         free(buf);
     }
 
+    // HTML form for user control
     const char* html = "<!DOCTYPE html>"
                        "<html>"
                        "<head>"
@@ -143,9 +160,9 @@ static esp_err_t control_handler(httpd_req_t *req) {
 
     char response[2048];
     snprintf(response, sizeof(response), html, volume, bpm,
-                       time_signature == 4 ? "selected" : "",
-                       time_signature == 3 ? "selected" : "",
-                       time_signature == 2 ? "selected" : "");
+             time_signature == 4 ? "selected" : "",
+             time_signature == 3 ? "selected" : "",
+             time_signature == 2 ? "selected" : "");
 
     httpd_resp_send(req, response, HTTPD_RESP_USE_STRLEN);
 
