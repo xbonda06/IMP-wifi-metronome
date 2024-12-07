@@ -113,12 +113,24 @@ static esp_err_t control_handler(httpd_req_t *req) {
 
     const char* html = "<!DOCTYPE html>"
                        "<html>"
-                       "<head><title>Metronome Control</title></head>"
+                       "<head>"
+                       "<title>Metronome Control</title>"
+                       "<style>"
+                       "body { font-family: Arial, sans-serif; text-align: center; background-color: #f4f4f9; }"
+                       "h1 { color: #333; }"
+                       "form { display: inline-block; text-align: left; margin: 20px; background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); }"
+                       "input, select { width: 80%%; padding: 10px; margin: 10px; border: 1px solid #ccc; border-radius: 5px; }"
+                       "input[type=submit] { background-color: #007BFF; color: #fff; border: none; cursor: pointer; }"
+                       "input[type=submit]:hover { background-color: #0056b3; }"
+                       "img { max-width: 200px; margin: 20px auto; }"
+                       "</style>"
+                       "</head>"
                        "<body>"
                        "<h1>Metronome Control</h1>"
+                       "<img src=\"https://img.freepik.com/free-vector/mechanical-wooden-swinging-metronome-retro-style-isolated-white-realistic_1284-28794.jpg?t=st=1733578027~exp=1733581627~hmac=74b54ad6200afc8d2d6d1bd14df5c713a35d18f8bdda67119f44ae63d3ef077e&w=1480\" alt=\"Metronome\">"
                        "<form action=\"/control\" method=\"get\">"
-                       "Volume: <input type=\"number\" name=\"volume\" value=\"%d\"><br>"
-                       "BPM: <input type=\"number\" name=\"bpm\" value=\"%d\"><br>"
+                       "Volume: <input type=\"number\" name=\"volume\" value=\"%d\" min=\"0\" max=\"255\"><br>"
+                       "BPM: <input type=\"number\" name=\"bpm\" value=\"%d\" min=\"30\" max=\"300\"><br>"
                        "Time Signature: <select name=\"time_signature\">"
                        "<option value=\"4\" %s>4/4</option>"
                        "<option value=\"3\" %s>3/4</option>"
@@ -129,11 +141,12 @@ static esp_err_t control_handler(httpd_req_t *req) {
                        "</body>"
                        "</html>";
 
-    char response[512];
+    char response[2048];
     snprintf(response, sizeof(response), html, volume, bpm,
-             time_signature == 4 ? "selected" : "",
-             time_signature == 3 ? "selected" : "",
-             time_signature == 2 ? "selected" : "");
+                       time_signature == 4 ? "selected" : "",
+                       time_signature == 3 ? "selected" : "",
+                       time_signature == 2 ? "selected" : "");
+
     httpd_resp_send(req, response, HTTPD_RESP_USE_STRLEN);
 
     return ESP_OK;
