@@ -15,26 +15,28 @@
 #define LEDC_MODE         LEDC_LOW_SPEED_MODE
 #define LEDC_CHANNEL      LEDC_CHANNEL_0
 #define LEDC_DUTY_RES     LEDC_TIMER_8_BIT
-#define LEDC_FREQUENCY    440
+#define STRONG_BEAT_FREQUENCY 494
+#define WEAK_BEAT_FREQUENCY 440
+
 
 #define WIFI_SSID "Pixel"
 #define WIFI_PASS "12131415"
 
-static int frequency = 440;
 static int volume = 128;
 static int bpm = 120; // Default tempo (beats per minute)
+static int time_signature = 4; // Default: 4/4 time signature
 
 // Function to calculate delay in milliseconds based on bpm
 static int calculate_delay() {
-    if(bpm < 170)
-        return (60000 / bpm) - 250;
+    if(bpm < 200)
+        return (60000 / bpm) - 100;
     else
         return (60000 / bpm) / 2;
 }
 
 static int calculate_sound_time(){
-    if(bpm < 170)
-        return 250;
+    if(bpm < 200)
+        return 100;
     else
         return (60000 / bpm) / 2;
 }
@@ -96,14 +98,14 @@ static esp_err_t control_handler(httpd_req_t *req) {
         buf = malloc(buf_len);
         if (httpd_req_get_url_query_str(req, buf, buf_len) == ESP_OK) {
             char param[32];
-            if (httpd_query_key_value(buf, "frequency", param, sizeof(param)) == ESP_OK) {
-                frequency = atoi(param);
-            }
             if (httpd_query_key_value(buf, "volume", param, sizeof(param)) == ESP_OK) {
                 volume = atoi(param);
             }
             if (httpd_query_key_value(buf, "bpm", param, sizeof(param)) == ESP_OK) {
                 bpm = atoi(param);
+            }
+            if (httpd_query_key_value(buf, "time_signature", param, sizeof(param)) == ESP_OK) {
+                time_signature = atoi(param);
             }
         }
         free(buf);
@@ -115,16 +117,23 @@ static esp_err_t control_handler(httpd_req_t *req) {
                        "<body>"
                        "<h1>Metronome Control</h1>"
                        "<form action=\"/control\" method=\"get\">"
-                       "Frequency: <input type=\"number\" name=\"frequency\" value=\"%d\"><br>"
                        "Volume: <input type=\"number\" name=\"volume\" value=\"%d\"><br>"
                        "BPM: <input type=\"number\" name=\"bpm\" value=\"%d\"><br>"
+                       "Time Signature: <select name=\"time_signature\">"
+                       "<option value=\"4\" %s>4/4</option>"
+                       "<option value=\"3\" %s>3/4</option>"
+                       "<option value=\"2\" %s>2/4</option>"
+                       "</select><br>"
                        "<input type=\"submit\" value=\"Update\">"
                        "</form>"
                        "</body>"
                        "</html>";
 
     char response[512];
-    snprintf(response, sizeof(response), html, frequency, volume, bpm);
+    snprintf(response, sizeof(response), html, volume, bpm,
+             time_signature == 4 ? "selected" : "",
+             time_signature == 3 ? "selected" : "",
+             time_signature == 2 ? "selected" : "");
     httpd_resp_send(req, response, HTTPD_RESP_USE_STRLEN);
 
     return ESP_OK;
@@ -152,7 +161,7 @@ void app_main(void) {
 
     ledc_timer_config_t ledc_timer = {
         .duty_resolution = LEDC_DUTY_RES,
-        .freq_hz = LEDC_FREQUENCY,
+        .freq_hz = WEAK_BEAT_FREQUENCY,
         .speed_mode = LEDC_MODE,
         .timer_num = LEDC_TIMER,
         .clk_cfg = LEDC_AUTO_CLK,
@@ -170,16 +179,22 @@ void app_main(void) {
     ledc_channel_config(&ledc_channel);
 
     while (1) {
-        ledc_set_freq(LEDC_MODE, LEDC_TIMER, frequency);
+        for (int i = 0; i < time_signature; i++) {
+            if (i == 0) {
+                ledc_set_freq(LEDC_MODE, LEDC_TIMER, STRONG_BEAT_FREQUENCY);
+            } else {
+                ledc_set_freq(LEDC_MODE, LEDC_TIMER, WEAK_BEAT_FREQUENCY);
+            }
 
-        ledc_set_duty(LEDC_MODE, LEDC_CHANNEL, volume);
-        ledc_update_duty(LEDC_MODE, LEDC_CHANNEL);
+            ledc_set_duty(LEDC_MODE, LEDC_CHANNEL, volume);
+            ledc_update_duty(LEDC_MODE, LEDC_CHANNEL);
 
-        vTaskDelay(pdMS_TO_TICKS(calculate_sound_time()));
+            vTaskDelay(pdMS_TO_TICKS(calculate_sound_time()));
 
-        ledc_set_duty(LEDC_MODE, LEDC_CHANNEL, 0);
-        ledc_update_duty(LEDC_MODE, LEDC_CHANNEL);
+            ledc_set_duty(LEDC_MODE, LEDC_CHANNEL, 0);
+            ledc_update_duty(LEDC_MODE, LEDC_CHANNEL);
 
-        vTaskDelay(pdMS_TO_TICKS(calculate_delay()));
+            vTaskDelay(pdMS_TO_TICKS(calculate_delay()));
+        }
     }
 }
