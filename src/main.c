@@ -18,10 +18,6 @@
 #define STRONG_BEAT_FREQUENCY 494
 #define WEAK_BEAT_FREQUENCY 440
 
-
-#define WIFI_SSID "Pixel"
-#define WIFI_PASS "12131415"
-
 static int volume = 128;
 static int bpm = 120; // Default tempo (beats per minute)
 static int time_signature = 4; // Default: 4/4 time signature
@@ -55,40 +51,6 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
     }
 }
 
-void wifi_init() {
-    esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ret = nvs_flash_init();
-    }
-    ESP_ERROR_CHECK(ret);
-
-    ESP_ERROR_CHECK(esp_netif_init());
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
-    esp_netif_create_default_wifi_sta();
-
-    wifi_init_config_t wifi_initiation = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&wifi_initiation));
-
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL, NULL));
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler, NULL, NULL));
-
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-
-    wifi_config_t wifi_config = {
-        .sta = {
-            .ssid = WIFI_SSID,
-            .password = WIFI_PASS,
-        },
-    };
-
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
-    ESP_ERROR_CHECK(esp_wifi_start());
-
-    printf("Connecting to Wi-Fi...\n");
-    esp_wifi_connect();
-}
-
 void wifi_init_softap() {
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -106,16 +68,16 @@ void wifi_init_softap() {
 
     wifi_config_t wifi_config = {
         .ap = {
-            .ssid = "Metronome_AP", // Название сети
+            .ssid = "Metronome_AP",
             .ssid_len = strlen("Metronome_AP"),
-            .password = "12345678", // Пароль
+            .password = "12345678",
             .max_connection = 4,
             .authmode = WIFI_AUTH_WPA_WPA2_PSK
         },
     };
 
     if (strlen("12345678") == 0) {
-        wifi_config.ap.authmode = WIFI_AUTH_OPEN; // Если пароль пустой, точка будет открытой
+        wifi_config.ap.authmode = WIFI_AUTH_OPEN;
     }
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
@@ -222,8 +184,8 @@ void start_webserver() {
 }
 
 void app_main(void) {
-    wifi_init_softap(); // Настраиваем точку доступа
-    start_webserver();  // Запускаем веб-сервер
+    wifi_init_softap();
+    start_webserver();
 
     ledc_timer_config_t ledc_timer = {
         .duty_resolution = LEDC_DUTY_RES,
