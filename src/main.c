@@ -73,6 +73,8 @@ void wifi_init() {
     ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL, NULL));
     ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler, NULL, NULL));
 
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+
     wifi_config_t wifi_config = {
         .sta = {
             .ssid = WIFI_SSID,
@@ -82,10 +84,45 @@ void wifi_init() {
 
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_start());
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
 
     printf("Connecting to Wi-Fi...\n");
     esp_wifi_connect();
+}
+
+void wifi_init_softap() {
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
+
+    ESP_ERROR_CHECK(esp_netif_init());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
+    esp_netif_create_default_wifi_ap();
+
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+
+    wifi_config_t wifi_config = {
+        .ap = {
+            .ssid = "Metronome_AP", // Название сети
+            .ssid_len = strlen("Metronome_AP"),
+            .password = "12345678", // Пароль
+            .max_connection = 4,
+            .authmode = WIFI_AUTH_WPA_WPA2_PSK
+        },
+    };
+
+    if (strlen("12345678") == 0) {
+        wifi_config.ap.authmode = WIFI_AUTH_OPEN; // Если пароль пустой, точка будет открытой
+    }
+
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_config));
+    ESP_ERROR_CHECK(esp_wifi_start());
+
+    printf("Wi-Fi Access Point started. SSID: %s\n", "Metronome_AP");
 }
 
 
@@ -144,7 +181,6 @@ static esp_err_t control_handler(httpd_req_t *req) {
                        "</head>"
                        "<body>"
                        "<h1>Metronome Control</h1>"
-                       "<img src=\"https://img.freepik.com/free-vector/mechanical-wooden-swinging-metronome-retro-style-isolated-white-realistic_1284-28794.jpg?t=st=1733578027~exp=1733581627~hmac=74b54ad6200afc8d2d6d1bd14df5c713a35d18f8bdda67119f44ae63d3ef077e&w=1480\" alt=\"Metronome\">"
                        "<form action=\"/control\" method=\"get\">"
                        "Volume: <input type=\"number\" name=\"volume\" value=\"%d\" min=\"0\" max=\"255\"><br>"
                        "BPM: <input type=\"number\" name=\"bpm\" value=\"%d\" min=\"30\" max=\"300\"><br>"
@@ -186,8 +222,8 @@ void start_webserver() {
 }
 
 void app_main(void) {
-    wifi_init();
-    start_webserver();
+    wifi_init_softap(); // Настраиваем точку доступа
+    start_webserver();  // Запускаем веб-сервер
 
     ledc_timer_config_t ledc_timer = {
         .duty_resolution = LEDC_DUTY_RES,
